@@ -970,6 +970,7 @@ async function initVRM() {
     vrm.scene.rotation.y = Math.PI; scene.add(vrm.scene);
     const box = new THREE.Box3().setFromObject(vrm.scene);
     const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
     camera.position.set(center.x, center.y + size.y * 0.1, center.z + 4.0); camera.lookAt(center.x, center.y - size.y * 0.1, center.z);
     vrmScene = { renderer, camera, scene, vrm, clock: new THREE.Clock() };
     canvas.style.display = 'block'; document.getElementById('void-orb').style.display = 'none';
