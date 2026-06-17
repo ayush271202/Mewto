@@ -80,7 +80,7 @@
   <div class="login-card">
     <input type="password" id="login-password" placeholder="Enter password..." autocomplete="off" />
     <div class="login-error" id="login-error">Invalid password</div>
-    <button class="btn-primary" onclick="attemptLogin()">ENTER</button>
+    <button class="btn-primary" id="login-btn">ENTER</button>
   </div>
 </div>
 
@@ -404,7 +404,7 @@ function addLog(msg, type = 'info') {
 // Event listeners
 document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
-
+document.getElementById('login-btn').addEventListener('click', attemptLogin);
 window.addEventListener('DOMContentLoaded', () => {
   if (localStorage.getItem('mwt_pwhash')) {
     document.querySelector('#login-screen p').textContent = 'Welcome back';
