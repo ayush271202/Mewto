@@ -87,9 +87,9 @@
 <!-- APP -->
 <div id="app">
   <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchView('vrm')">Mewtwo</button>
-    <button class="tab-btn" onclick="switchView('chat')">Chat</button>
-    <button class="tab-btn" onclick="switchView('log')">Log</button>
+    <button class="tab-btn active" id="tab-vrm" data-view="vrm">Mewtwo</button>
+<button class="tab-btn" id="tab-chat" data-view="chat">Chat</button>
+<button class="tab-btn" id="tab-log" data-view="log">Log</button>
   </div>
 
   <!-- VRM VIEW -->
@@ -382,7 +382,7 @@ function switchView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(name + '-view').classList.add('active');
-  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
 }
 
 function updateVRMStatus() {
@@ -405,6 +405,9 @@ function addLog(msg, type = 'info') {
 document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
 document.getElementById('login-btn').addEventListener('click', attemptLogin);
+document.getElementById('tab-vrm').addEventListener('click', () => switchView('vrm'));
+document.getElementById('tab-chat').addEventListener('click', () => switchView('chat'));
+document.getElementById('tab-log').addEventListener('click', () => switchView('log'));
 window.addEventListener('DOMContentLoaded', () => {
   if (localStorage.getItem('mwt_pwhash')) {
     document.querySelector('#login-screen p').textContent = 'Welcome back';
