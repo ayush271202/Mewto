@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Mewtwo</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.1/lib/three-vrm.module.min.js"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #08080c;
+    --surface: #12121a;
+    --bubble-them: #1a1a26;
+    --bubble-me: #4c1d95;
+    --accent: #8b5cf6;
+    --text: #e8e6f0;
+    --text-dim: #6b6878;
+    --border: rgba(139,92,246,0.14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+  /* ── Top bar ── */
+  .topbar { display: flex; align-items: center; justify-content: center; padding: 14px 16px 10px; flex-shrink: 0; }
+  .topbar h1 { font-size: 1rem; font-weight: 500; letter-spacing: 0.18em; color: var(--accent); }
+
+  /* ── Tabs ── */
+  .tabbar { display: flex; gap: 0; border-bottom: 1px solid var(--border); flex-shrink: 0; padding: 0 16px; }
+  .tabbtn { flex: 1; text-align: center; padding: 10px 0; font-size: 0.82rem; color: var(--text-dim); background: none; border: none; position: relative; cursor: pointer; letter-spacing: 0.03em; }
+  .tabbtn.active { color: var(--text); }
+  .tabbtn.active::after { content: ''; position: absolute; bottom: -1px; left: 25%; right: 25%; height: 2px; background: var(--accent); border-radius: 2px; }
+
+  .view { flex: 1; display: none; flex-direction: column; overflow: hidden; min-height: 0; }
+  .view.active { display: flex; }
+
+  /* ── Chat view ── */
+  #chat-scroll { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .bubble-row { display: flex; }
+  .bubble-row.me { justify-content: flex-end; }
+  .bubble-row.them { justify-content: flex-start; }
+  .bubble { max-width: 78%; padding: 9px 13px; border-radius: 16px; font-size: 0.92rem; line-height: 1.4; word-wrap: break-word; }
+  .bubble.me { background: var(--bubble-me); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble.them { background: var(--bubble-them); color: var(--text); border-bottom-left-radius: 4px; }
+  .bubble.thinking { color: var(--text-dim); font-style: italic; }
+  .bubble-time { font-size: 0.62rem; color: var(--text-dim); margin-top: 3px; text-align: right; }
+  .empty-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 2rem; }
+
+  .input-bar { display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); flex-shrink: 0; }
+  .input-bar input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 11px 16px; color: var(--text); font-size: 0.92rem; outline: none; }
+  .input-bar input:focus { border-color: var(--accent); }
+  .send-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); border: none; color: #fff; font-size: 1.1rem; flex-shrink: 0; cursor: pointer; }
+  .send-btn:active { opacity: 0.7; }
+  .send-btn:disabled { opacity: 0.4; }
+
+  /* ── 3D view ── */
+  #vrm-wrap { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; }
+  #vrm-canvas { width: 100%; height: 100%; display: block; }
+  #vrm-status { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.05em; pointer-events: none; }
+  .void-orb { width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #4c1d95, #08080c); border: 1px solid rgba(139,92,246,0.3); animation: breathe 4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100%{transform:scale(1);box-shadow:0 0 20px rgba(139,92,246,0.2)} 50%{transform:scale(1.05);box-shadow:0 0 40px rgba(139,92,246,0.4)} }
+
+  /* ── debug console (hidden unless error) ── */
+  #debug-console { position: fixed; bottom: 0; left: 0; right: 0; max-height: 30vh; overflow-y: auto; background: rgba(0,0,0,0.92); color: #ff6b6b; font-family: monospace; font-size: 0.65rem; padding: 8px 10px; display: none; z-index: 999; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar"><h1>MEWTWO</h1></div>
+  <div class="tabbar">
+    <button class="tabbtn active" id="tab-btn-chat" onclick="switchView('chat')">Chat</button>
+    <button class="tabbtn" id="tab-btn-body" onclick="switchView('body')">Form</button>
+  </div>
+
+  <div class="view active" id="view-chat">
+    <div id="chat-scroll">
+      <div class="empty-chat" id="chat-empty">Say something. He may not answer.</div>
+    </div>
+    <div class="input-bar">
+      <input type="text" id="chat-input" placeholder="Message Mewtwo..." autocomplete="off" />
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+    </div>
+  </div>
+
+  <div class="view" id="view-body">
+    <div id="vrm-wrap">
+      <canvas id="vrm-canvas" style="display:none;"></canvas>
+      <div class="void-orb" id="void-orb"></div>
+      <div id="vrm-status">loading form...</div>
+    </div>
+  </div>
+</div>
+
+<div id="debug-console"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG — only thing you need to edit
+// ═══════════════════════════════════════════
+const MEWTWO_BACKEND_URL = "https://winzkknygeggtnxvregw.supabase.co/functions/v1/Mewto-f";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indpbnpra255Z2VnZ3RueHZyZWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1OTQxNDAsImV4cCI6MjA5NzE3MDE0MH0.KlTj96uDAny7Pt-JK-OdVYi2d60FlFDpOD3GaWnX6ns";
+
+// ═══════════════════════════════════════════
+// VISIBLE DEBUG CONSOLE (only shows on error)
+// ═══════════════════════════════════════════
+const debugLines = [];
+function debugLog(msg, isError) {
+  debugLines.push((isError ? '[ERROR] ' : '[LOG] ') + msg);
+  if (isError) {
+    const box = document.getElementById('debug-console');
+    box.style.display = 'block';
+    box.textContent = debugLines.slice(-25).join('\n');
+  }
+}
+window.debugLog = debugLog;
+window.addEventListener('error', e => debugLog((e.message||'Unknown error') + ' @ line ' + (e.lineno||'?'), true));
+window.addEventListener('unhandledrejection', e => debugLog('Promise rejection: ' + (e.reason?.message || JSON.stringify(e.reason)), true));
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+function switchView(name) {
+  document.getElementById('view-chat').classList.toggle('active', name==='chat');
+  document.getElementById('view-body').classList.toggle('active', name==='body');
+  document.getElementById('tab-btn-chat').classList.toggle('active', name==='chat');
+  document.getElementById('tab-btn-body').classList.toggle('active', name==='body');
+}
+
+// ═══════════════════════════════════════════
+// BRAIN STATE (shared with the module script below via window)
+// ═══════════════════════════════════════════
+window.BRAIN = { currentState: new Array(8).fill(0.1) };
+
+// ═══════════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════════
+function formatTime() {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function addBubble(text, who) {
+  const scroll = document.getElementById('chat-scroll');
+  const empty = document.getElementById('chat-empty');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'bubble-row ' + who;
+  row.innerHTML = `<div><div class="bubble ${who}">${escapeHtml(text)}</div><div class="bubble-time">${formatTime()}</div></div>`;
+  scroll.appendChild(row);
+  scroll.scrollTop = scroll.scrollHeight;
+  return row;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const btn = document.getElementById('send-btn');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  btn.disabled = true;
+
+  addBubble(msg, 'me');
+
+  const thinkingRow = document.createElement('div');
+  thinkingRow.className = 'bubble-row them';
+  thinkingRow.innerHTML = `<div class="bubble them thinking">...</div>`;
+  document.getElementById('chat-scroll').appendChild(thinkingRow);
+  document.getElementById('chat-scroll').scrollTop = document.getElementById('chat-scroll').scrollHeight;
+
+  try {
+    if (!MEWTWO_BACKEND_URL || MEWTWO_BACKEND_URL.includes('PASTE_YOUR')) {
+      throw new Error('Backend URL not configured yet.');
+    }
+    const res = await fetch(MEWTWO_BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'chat', message: msg })
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Backend ${res.status}: ${errText.substring(0,150)}`);
+    }
+    const data = await res.json();
+    thinkingRow.remove();
+    addBubble(data.reply || '...', 'them');
+    nudgeBodyState();
+  } catch (e) {
+    thinkingRow.remove();
+    addBubble('...', 'them');
+    debugLog('Chat failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+// Gives the 3D body a small fresh random nudge after each exchange
+// so it visibly reacts to conversation, independent of backend internals.
+function nudgeBodyState() {
+  window.BRAIN.currentState = window.BRAIN.currentState.map(v => Math.max(0, Math.min(1, v + (Math.random()-0.4)*0.3)));
+}
+
+document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+
+// ═══════════════════════════════════════════
+// LOAD CHAT HISTORY FROM BACKEND ON OPEN
+// ═══════════════════════════════════════════
+async function loadHistory() {
+  if (!MEWTWO_BACKEND_URL || MEWTWO_BACKEND_URL.includes('PASTE_YOUR')) return;
+  try {
+    const res = await fetch(MEWTWO_BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'get_memories' })
+    });
+    const data = await res.json();
+    const exchanges = (data.memories || [])
+      .filter(m => m.type === 'interaction' || m.type === 'first')
+      .reverse();
+    if (exchanges.length === 0) return;
+    document.getElementById('chat-empty')?.remove();
+    exchanges.forEach(m => {
+      const match = m.content.match(/Asked: "(.*?)" — Said: "(.*?)"/);
+      if (match) {
+        addBubble(match[1], 'me');
+        addBubble(match[2], 'them');
+      }
+    });
+  } catch (e) {
+    debugLog('History load failed: ' + e.message, true);
+  }
+}
+loadHistory();
+</script>
+
+<script type="module">
+// ═══════════════════════════════════════════
+// VRM BODY — independent of chat/backend logic.
+// Reads BRAIN.currentState (defined above) only.
+// ═══════════════════════════════════════════
+let vrmScene = { renderer:null, camera:null, scene:null, vrm:null, clock:null };
+
+async function initVRM() {
+  let THREE, GLTFLoader, VRMLoaderPlugin, VRMUtils;
+  try {
+    THREE = await import('three');
+    ({ GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js'));
+    ({ VRMLoaderPlugin, VRMUtils } = await import('@pixiv/three-vrm'));
+  } catch (e) {
+    window.debugLog?.('Failed to load 3D libraries: ' + e.message, true);
+    document.getElementById('vrm-status').textContent = '3D unavailable';
+    return;
+  }
+
+  const canvas = document.getElementById('vrm-canvas');
+  const wrap = document.getElementById('vrm-wrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const camera = new THREE.PerspectiveCamera(30, w/h, 0.1, 20);
+  const scene = new THREE.Scene();
+
+  const light = new THREE.DirectionalLight(0xffffff, 1.4);
+  light.position.set(1, 1.5, 1);
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const rimLight = new THREE.DirectionalLight(0xb794f6, 0.3);
+  rimLight.position.set(-1, 0.5, -1);
+  scene.add(rimLight);
+
+  const loader = new GLTFLoader();
+  loader.register((parser) => new VRMLoaderPlugin(parser));
+
+  try {
+    const gltf = await loader.loadAsync('mewtwo.glb');
+    const vrm = gltf.userData.vrm;
+    VRMUtils.removeUnnecessaryVertices(gltf.scene);
+    VRMUtils.removeUnnecessaryJoints(gltf.scene);
+    vrm.scene.rotation.y = Math.PI;
+    scene.add(vrm.scene);
+
+    const box = new THREE.Box3().setFromObject(vrm.scene);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const modelHeight = size.y || 1.6;
+    const fovRad = camera.fov * (Math.PI / 180);
+    const distance = (modelHeight / 2) / Math.tan(fovRad / 2) * 1.35;
+    camera.position.set(center.x, center.y, distance);
+    camera.lookAt(center.x, center.y, center.z);
+    camera.near = distance / 100;
+    camera.far = distance * 100;
+    camera.updateProjectionMatrix();
+
+    vrmScene = { renderer, camera, scene, vrm, clock: new THREE.Clock() };
+    canvas.style.display = 'block';
+    document.getElementById('void-orb').style.display = 'none';
+    document.getElementById('vrm-status').textContent = '';
+    animateVRM();
+  } catch (e) {
+    window.debugLog?.('3D model failed to load: ' + e.message, true);
+    document.getElementById('vrm-status').textContent = 'form not loaded';
+  }
+}
+
+function animateVRM() {
+  requestAnimationFrame(animateVRM);
+  const { renderer, camera, scene, vrm, clock } = vrmScene;
+  if (!vrm) return;
+  const delta = clock.getDelta();
+  const state = (window.BRAIN && window.BRAIN.currentState) ? window.BRAIN.currentState : new Array(8).fill(0.1);
+
+  const head = vrm.humanoid?.getNormalizedBoneNode('head');
+  if (head) {
+    head.rotation.y = (state[0]-0.5) * 0.5;
+    head.rotation.x = (state[2]-0.5) * 0.3;
+  }
+  const spine = vrm.humanoid?.getNormalizedBoneNode('spine');
+  if (spine) spine.rotation.y = (state[5]-0.5) * 0.15;
+
+  const t = clock.elapsedTime;
+  if (vrm.scene) vrm.scene.position.y = Math.sin(t * 1.2) * 0.01;
+
+  if (vrm.expressionManager) {
+    const calm = Math.max(0, 1 - state[1]*1.5);
+    vrm.expressionManager.setValue('neutral', calm);
+    vrm.expressionManager.setValue('angry', Math.max(0, state[6]-0.6)*1.5);
+    vrm.expressionManager.setValue('joy', Math.max(0, state[4]-0.8)*2);
+    vrm.expressionManager.update();
+  }
+
+  vrm.update(delta);
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('DOMContentLoaded', initVRM);
+</script>
+</body>
+</html>
